@@ -7,18 +7,20 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
-	"github.com/labstack/echo"
+
 	"github.com/flosch/pongo2"
+	"github.com/labstack/echo"
 )
 
 // Renderer manages a pongo2 TemplateSet
 type Renderer struct {
-	BaseDir string
-	TplSet  *pongo2.TemplateSet
+	BaseDir   string
+	DebugMode bool
+	TplSet    *pongo2.TemplateSet
 }
 
 // NewRenderer creates a new instance of Renderer
-func NewRenderer(baseDir string) (*Renderer, error) {
+func NewRenderer(baseDir string, Debug bool) (*Renderer, error) {
 	// check if baseDir exists
 	fInfo, err := os.Lstat(baseDir)
 	if err != nil {
@@ -29,6 +31,7 @@ func NewRenderer(baseDir string) (*Renderer, error) {
 	}
 
 	rdr := Renderer{}
+	rdr.DebugMode = Debug
 	loader, err := pongo2.NewLocalFileSystemLoader(baseDir)
 	if err != nil {
 		return nil, err
@@ -42,10 +45,23 @@ func NewRenderer(baseDir string) (*Renderer, error) {
 // Render implements echo.Render interface
 func (r *Renderer) Render(w io.Writer, name string, data interface{}, c echo.Context) error {
 	// get template, compile it anf store it in cache
-	tpl, err := r.TplSet.FromCache(name)
-	if err != nil {
-		return err
+	var tpl *pongo2.Template
+	if r.DebugMode {
+		fltpl, err := r.TplSet.FromFile(name)
+		if err != nil {
+			return err
+		}
+
+		tpl = fltpl
+	} else {
+		catpl, err := r.TplSet.FromCache(name)
+		if err != nil {
+			return err
+		}
+
+		tpl = catpl
 	}
+
 	// convert supplied data to pongo2.Context
 	val, err := toPongoCtx(data)
 	if err != nil {
